@@ -156,6 +156,7 @@ def run_game(screen, clock, font_score, font_big, font_small):
     score = 0
     tick = 0
     game_over = False
+    paused = False
 
     while True:
         for event in pygame.event.get():
@@ -168,16 +169,19 @@ def run_game(screen, clock, font_score, font_big, font_small):
                     if event.key == pygame.K_q or event.key == pygame.K_ESCAPE:
                         return "quit"
                 else:
-                    if event.key == pygame.K_UP    and direction != DOWN:
-                        next_dir = UP
-                    elif event.key == pygame.K_DOWN  and direction != UP:
-                        next_dir = DOWN
-                    elif event.key == pygame.K_LEFT  and direction != RIGHT:
-                        next_dir = LEFT
-                    elif event.key == pygame.K_RIGHT and direction != LEFT:
-                        next_dir = RIGHT
+                    if event.key == pygame.K_p:
+                        paused = not paused
+                    if not paused:
+                        if event.key == pygame.K_UP    and direction != DOWN:
+                            next_dir = UP
+                        elif event.key == pygame.K_DOWN  and direction != UP:
+                            next_dir = DOWN
+                        elif event.key == pygame.K_LEFT  and direction != RIGHT:
+                            next_dir = LEFT
+                        elif event.key == pygame.K_RIGHT and direction != LEFT:
+                            next_dir = RIGHT
 
-        if not game_over:
+        if not game_over and not paused:
             direction = next_dir
             head = (snake[0][0] + direction[0], snake[0][1] + direction[1])
 
@@ -209,6 +213,16 @@ def run_game(screen, clock, font_score, font_big, font_small):
             f"Speed: {current_fps(score):.0f}", True, (90, 90, 90))
         screen.blit(fps_surf, (WINDOW_W - fps_surf.get_width() - 10, 10))
 
+        if paused and not game_over:
+            overlay = pygame.Surface((WINDOW_W, WINDOW_H), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 140))
+            screen.blit(overlay, (0, 0))
+            cx, cy = WINDOW_W // 2, WINDOW_H // 2
+            pause_surf = font_big.render("PAUSED", True, TEXT_C)
+            hint_surf  = font_score.render("Press  P  to resume", True, (160, 160, 160))
+            screen.blit(pause_surf, pause_surf.get_rect(center=(cx, cy - 30)))
+            screen.blit(hint_surf,  hint_surf.get_rect(center=(cx, cy + 30)))
+
         if game_over:
             # Semi-transparent overlay
             overlay = pygame.Surface((WINDOW_W, WINDOW_H), pygame.SRCALPHA)
@@ -229,7 +243,7 @@ def run_game(screen, clock, font_score, font_big, font_small):
 
         pygame.display.flip()
         tick += 1
-        clock.tick(current_fps(score) if not game_over else 30)
+        clock.tick(current_fps(score) if not game_over and not paused else 30)
 
 
 def main():
