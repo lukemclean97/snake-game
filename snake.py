@@ -101,6 +101,44 @@ def draw_golden_food(surface, pos, time_left, tick):
     pygame.draw.rect(surface, GOLD_C,        (bx, by, filled, 3))
 
 
+class Particle:
+    __slots__ = ("x", "y", "vx", "vy", "life", "max_life", "color", "size")
+
+    def __init__(self, x, y, color):
+        angle  = random.uniform(0, 2 * 3.14159)
+        speed  = random.uniform(1.5, 5.0)
+        self.x       = float(x)
+        self.y       = float(y)
+        self.vx      = speed * __import__("math").cos(angle)
+        self.vy      = speed * __import__("math").sin(angle)
+        self.max_life = random.randint(12, 22)
+        self.life    = self.max_life
+        self.color   = color
+        self.size    = random.randint(2, 5)
+
+    def update(self):
+        self.x  += self.vx
+        self.y  += self.vy
+        self.vy += 0.2   # gravity
+        self.vx *= 0.92  # drag
+        self.life -= 1
+
+    def draw(self, surface):
+        alpha = self.life / self.max_life          # 1.0 → 0.0
+        r, g, b = self.color
+        faded = (int(r * alpha), int(g * alpha), int(b * alpha))
+        size = max(1, int(self.size * alpha))
+        pygame.draw.circle(surface, faded, (int(self.x), int(self.y)), size)
+
+
+def spawn_particles(particles, grid_pos, color, count=18):
+    """Burst `count` particles from the centre of a grid cell."""
+    cx = grid_pos[0] * CELL + CELL // 2
+    cy = grid_pos[1] * CELL + CELL // 2
+    for _ in range(count):
+        particles.append(Particle(cx, cy, color))
+
+
 def current_fps(score):
     return min(BASE_FPS + score * FPS_PER_POINT, MAX_FPS)
 
@@ -199,6 +237,7 @@ def run_game(screen, clock, font_score, font_big, font_small, high_score):
     golden_food = None        # position or None
     golden_timer = 0.0        # seconds remaining
     next_golden_tick = int(GOLDEN_INTERVAL * BASE_FPS)  # tick when next spawn attempt
+    particles = []
 
     while True:
         for event in pygame.event.get():
@@ -236,6 +275,7 @@ def run_game(screen, clock, font_score, font_big, font_small, high_score):
             else:
                 snake.insert(0, head)
                 if head == food:
+                    spawn_particles(particles, head, FOOD_C)
                     score += 1
                     food = new_food(snake)
                     if score > high_score:
@@ -243,6 +283,7 @@ def run_game(screen, clock, font_score, font_big, font_small, high_score):
                         new_best = True
                         save_high_score(high_score)
                 elif golden_food and head == golden_food:
+                    spawn_particles(particles, head, GOLD_C, count=30)
                     score += GOLDEN_POINTS
                     golden_food = None
                     if score > high_score:
@@ -270,6 +311,13 @@ def run_game(screen, clock, font_score, font_big, font_small, high_score):
         if golden_food:
             draw_golden_food(screen, golden_food, golden_timer, tick)
         draw_snake(screen, snake)
+
+        if not paused:
+            for p in particles:
+                p.update()
+            particles[:] = [p for p in particles if p.life > 0]
+        for p in particles:
+            p.draw(screen)
 
         # Score HUD
         score_surf = font_score.render(f"Score: {score}", True, SCORE_C)
