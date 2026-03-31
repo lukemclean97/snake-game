@@ -33,6 +33,7 @@ GRID      = (30,  30,  30)
 SNAKE_H   = (80,  200,  80)   # head
 SNAKE_B   = (50,  160,  50)   # body
 FOOD_C    = (220,  60,  60)
+GOLD_C    = (255, 200,   0)
 TEXT_C    = (230, 230, 230)
 SCORE_C   = (120, 220, 120)
 OVER_BG   = (0,   0,   0)
@@ -77,6 +78,27 @@ def draw_food(surface, food, tick):
     pulse = abs((tick % 30) - 15) / 15  # 0..1
     shrink = int(2 + pulse * 3)
     draw_cell(surface, food, FOOD_C, shrink)
+
+
+GOLDEN_LIFETIME = 5      # seconds golden food stays on screen
+GOLDEN_INTERVAL = 15     # seconds between spawn attempts
+GOLDEN_POINTS   = 3
+
+
+def draw_golden_food(surface, pos, time_left, tick):
+    # Fast pulse that speeds up as time runs out
+    speed = 1 + (1 - time_left / GOLDEN_LIFETIME) * 3
+    pulse = abs(((tick * speed) % 30) - 15) / 15
+    shrink = int(1 + pulse * 3)
+    draw_cell(surface, pos, GOLD_C, shrink)
+
+    # Timer bar just below the cell
+    bar_w = CELL - 2
+    filled = int(bar_w * (time_left / GOLDEN_LIFETIME))
+    bx = pos[0] * CELL + 1
+    by = pos[1] * CELL + CELL + 2
+    pygame.draw.rect(surface, (80, 60, 0),  (bx, by, bar_w, 3))
+    pygame.draw.rect(surface, GOLD_C,        (bx, by, filled, 3))
 
 
 def current_fps(score):
@@ -174,6 +196,9 @@ def run_game(screen, clock, font_score, font_big, font_small, high_score):
     game_over = False
     paused = False
     new_best = False
+    golden_food = None        # position or None
+    golden_timer = 0.0        # seconds remaining
+    next_golden_tick = int(GOLDEN_INTERVAL * BASE_FPS)  # tick when next spawn attempt
 
     while True:
         for event in pygame.event.get():
@@ -217,13 +242,33 @@ def run_game(screen, clock, font_score, font_big, font_small, high_score):
                         high_score = score
                         new_best = True
                         save_high_score(high_score)
+                elif golden_food and head == golden_food:
+                    score += GOLDEN_POINTS
+                    golden_food = None
+                    if score > high_score:
+                        high_score = score
+                        new_best = True
+                        save_high_score(high_score)
                 else:
                     snake.pop()
+
+            # Golden food: spawn / expire
+            fps = current_fps(score)
+            if golden_food:
+                golden_timer -= 1 / fps
+                if golden_timer <= 0:
+                    golden_food = None
+            elif tick >= next_golden_tick:
+                golden_food  = new_food(snake + ([food] if food else []))
+                golden_timer = GOLDEN_LIFETIME
+                next_golden_tick = tick + int(GOLDEN_INTERVAL * fps)
 
         # --- Draw ---
         screen.fill(BG)
         draw_grid(screen)
         draw_food(screen, food, tick)
+        if golden_food:
+            draw_golden_food(screen, golden_food, golden_timer, tick)
         draw_snake(screen, snake)
 
         # Score HUD
@@ -236,6 +281,11 @@ def run_game(screen, clock, font_score, font_big, font_small, high_score):
         fps_surf = font_small.render(
             f"Speed: {current_fps(score):.0f}", True, (90, 90, 90))
         screen.blit(fps_surf, (WINDOW_W - fps_surf.get_width() - 10, 10))
+
+        if golden_food:
+            gold_hud = font_small.render(
+                f"+{GOLDEN_POINTS}  {golden_timer:.1f}s", True, GOLD_C)
+            screen.blit(gold_hud, (WINDOW_W - gold_hud.get_width() - 10, 30))
 
         if paused and not game_over:
             overlay = pygame.Surface((WINDOW_W, WINDOW_H), pygame.SRCALPHA)
