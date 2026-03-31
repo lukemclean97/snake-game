@@ -67,6 +67,83 @@ def current_fps(score):
     return min(BASE_FPS + score * FPS_PER_POINT, MAX_FPS)
 
 
+def show_start_screen(screen, clock, font_big, font_score, font_small):
+    """Animated start screen. Returns 'start' or 'quit'."""
+    # Build a demo snake that slowly slithers across the background
+    demo_snake = [(COLS // 2 + i, ROWS // 2) for i in range(6, -1, -1)]
+    demo_dir = RIGHT
+    demo_food = (COLS // 2 + 10, ROWS // 2 - 3)
+    tick = 0
+
+    CONTROLS = [
+        ("UP",    "Move up"),
+        ("DOWN",  "Move down"),
+        ("LEFT",  "Move left"),
+        ("RIGHT", "Move right"),
+    ]
+
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return "quit"
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
+                    return "start"
+                if event.key == pygame.K_q or event.key == pygame.K_ESCAPE:
+                    return "quit"
+
+        # Animate demo snake (moves every 8 ticks)
+        if tick % 8 == 0:
+            head = (demo_snake[0][0] + demo_dir[0], demo_snake[0][1] + demo_dir[1])
+            # Bounce off edges
+            if not (0 <= head[0] < COLS and 0 <= head[1] < ROWS):
+                demo_dir = (demo_dir[0] * -1, demo_dir[1] * -1)
+                head = (demo_snake[0][0] + demo_dir[0], demo_snake[0][1] + demo_dir[1])
+            demo_snake.insert(0, head)
+            demo_snake.pop()
+
+        # --- Draw ---
+        screen.fill(BG)
+        draw_grid(screen)
+        draw_food(screen, demo_food, tick)
+        draw_snake(screen, demo_snake)
+
+        # Dim overlay so text is readable
+        overlay = pygame.Surface((WINDOW_W, WINDOW_H), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 140))
+        screen.blit(overlay, (0, 0))
+
+        cx = WINDOW_W // 2
+        cy = WINDOW_H // 2
+
+        # Title with a gentle vertical bob
+        bob = int(4 * abs((tick % 60) / 30 - 1))
+        title = font_big.render("SNAKE", True, SNAKE_H)
+        screen.blit(title, title.get_rect(center=(cx, cy - 110 + bob)))
+
+        # Blinking "press to start"
+        if (tick // 20) % 2 == 0:
+            start_surf = font_score.render("Press  SPACE  to start", True, (200, 200, 200))
+            screen.blit(start_surf, start_surf.get_rect(center=(cx, cy - 40)))
+
+        # Divider
+        pygame.draw.line(screen, (60, 60, 60), (cx - 120, cy - 10), (cx + 120, cy - 10), 1)
+
+        # Controls list
+        label = font_small.render("CONTROLS", True, (100, 100, 100))
+        screen.blit(label, label.get_rect(center=(cx, cy + 15)))
+        for i, (key, action) in enumerate(CONTROLS):
+            line = font_small.render(f"{key:<6}  {action}", True, (160, 160, 160))
+            screen.blit(line, line.get_rect(center=(cx, cy + 40 + i * 22)))
+
+        quit_hint = font_small.render("Q  to quit", True, (80, 80, 80))
+        screen.blit(quit_hint, quit_hint.get_rect(center=(cx, cy + 160)))
+
+        pygame.display.flip()
+        tick += 1
+        clock.tick(30)
+
+
 def run_game(screen, clock, font_score, font_big, font_small):
     """Run one game session. Returns when the player quits or restarts."""
     # Initial snake: 3 segments, heading right
@@ -166,6 +243,9 @@ def main():
     font_small = pygame.font.SysFont("monospace", 16)
 
     while True:
+        action = show_start_screen(screen, clock, font_big, font_score, font_small)
+        if action == "quit":
+            break
         result = run_game(screen, clock, font_score, font_big, font_small)
         if result == "quit":
             break
