@@ -1,6 +1,22 @@
 import pygame
 import random
 import sys
+import os
+
+HIGH_SCORE_FILE = os.path.join(os.path.dirname(__file__), "highscore.txt")
+
+
+def load_high_score():
+    try:
+        with open(HIGH_SCORE_FILE) as f:
+            return int(f.read().strip())
+    except (FileNotFoundError, ValueError):
+        return 0
+
+
+def save_high_score(score):
+    with open(HIGH_SCORE_FILE, "w") as f:
+        f.write(str(score))
 
 # --- Constants ---
 WINDOW_W, WINDOW_H = 640, 480
@@ -144,8 +160,8 @@ def show_start_screen(screen, clock, font_big, font_score, font_small):
         clock.tick(30)
 
 
-def run_game(screen, clock, font_score, font_big, font_small):
-    """Run one game session. Returns when the player quits or restarts."""
+def run_game(screen, clock, font_score, font_big, font_small, high_score):
+    """Run one game session. Returns (result, high_score)."""
     # Initial snake: 3 segments, heading right
     snake = [(COLS // 2, ROWS // 2),
              (COLS // 2 - 1, ROWS // 2),
@@ -157,17 +173,18 @@ def run_game(screen, clock, font_score, font_big, font_small):
     tick = 0
     game_over = False
     paused = False
+    new_best = False
 
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                return "quit"
+                return "quit", high_score
             if event.type == pygame.KEYDOWN:
                 if game_over:
                     if event.key == pygame.K_r:
-                        return "restart"
+                        return "restart", high_score
                     if event.key == pygame.K_q or event.key == pygame.K_ESCAPE:
-                        return "quit"
+                        return "quit", high_score
                 else:
                     if event.key == pygame.K_p:
                         paused = not paused
@@ -196,6 +213,10 @@ def run_game(screen, clock, font_score, font_big, font_small):
                 if head == food:
                     score += 1
                     food = new_food(snake)
+                    if score > high_score:
+                        high_score = score
+                        new_best = True
+                        save_high_score(high_score)
                 else:
                     snake.pop()
 
@@ -208,6 +229,9 @@ def run_game(screen, clock, font_score, font_big, font_small):
         # Score HUD
         score_surf = font_score.render(f"Score: {score}", True, SCORE_C)
         screen.blit(score_surf, (10, 8))
+
+        hs_surf = font_small.render(f"Best: {high_score}", True, (160, 130, 60))
+        screen.blit(hs_surf, (10, 36))
 
         fps_surf = font_small.render(
             f"Speed: {current_fps(score):.0f}", True, (90, 90, 90))
@@ -231,15 +255,21 @@ def run_game(screen, clock, font_score, font_big, font_small):
 
             title_surf = font_big.render("GAME OVER", True, (220, 60, 60))
             score_big  = font_big.render(f"Score: {score}", True, TEXT_C)
+            hs_line    = font_score.render(f"Best:  {high_score}", True, (200, 160, 60))
             restart    = font_score.render("Press  R  to restart", True, (150, 220, 150))
             quit_hint  = font_score.render("Press  Q  to quit", True, (180, 180, 180))
 
             cx = WINDOW_W // 2
             cy = WINDOW_H // 2
-            screen.blit(title_surf,  title_surf.get_rect(center=(cx, cy - 70)))
-            screen.blit(score_big,   score_big.get_rect(center=(cx, cy - 10)))
-            screen.blit(restart,     restart.get_rect(center=(cx, cy + 50)))
-            screen.blit(quit_hint,   quit_hint.get_rect(center=(cx, cy + 90)))
+            screen.blit(title_surf, title_surf.get_rect(center=(cx, cy - 80)))
+            screen.blit(score_big,  score_big.get_rect(center=(cx, cy - 20)))
+            if new_best:
+                best_surf = font_score.render("*** NEW BEST! ***", True, (255, 200, 0))
+                screen.blit(best_surf, best_surf.get_rect(center=(cx, cy + 20)))
+            else:
+                screen.blit(hs_line, hs_line.get_rect(center=(cx, cy + 20)))
+            screen.blit(restart,  restart.get_rect(center=(cx, cy + 60)))
+            screen.blit(quit_hint, quit_hint.get_rect(center=(cx, cy + 95)))
 
         pygame.display.flip()
         tick += 1
@@ -256,11 +286,13 @@ def main():
     font_score = pygame.font.SysFont("monospace", 24)
     font_small = pygame.font.SysFont("monospace", 16)
 
+    high_score = load_high_score()
+
     while True:
         action = show_start_screen(screen, clock, font_big, font_score, font_small)
         if action == "quit":
             break
-        result = run_game(screen, clock, font_score, font_big, font_small)
+        result, high_score = run_game(screen, clock, font_score, font_big, font_small, high_score)
         if result == "quit":
             break
 
